@@ -16,6 +16,7 @@ const el = {
   storageBucket: document.querySelector("#storageBucket"),
   workspace: document.querySelector("#workspace"),
   sessionPath: document.querySelector("#sessionPath"),
+  overrideSessionPath: document.querySelector("#overrideSessionPath"),
   authEmail: document.querySelector("#authEmail"),
   authPassword: document.querySelector("#authPassword"),
   roomName: document.querySelector("#roomName"),
@@ -142,17 +143,23 @@ document.querySelector("#finishControl")?.addEventListener("click", async () => 
 document.querySelector("#applyHandoff")?.addEventListener("click", async () => {
   await runAction(async () => {
     if (!state.selectedRoomId || !state.selectedChatId) return writeOutput("Select a chat first.");
+    const targetSessionPath = selectedOverrideSessionPath();
+    if (!targetSessionPath) return writeOutput("Choose a local chat to override first.");
     await syncConfig();
     const result = await api("/api/apply-latest", {
       roomId: state.selectedRoomId,
       chatId: state.selectedChatId,
       checkout: true,
       requireCleanTree: true,
-      targetSessionPath: el.sessionPath.value
+      targetSessionPath
     });
     writeOutput(JSON.stringify(result, null, 2));
     await refresh();
   });
+});
+
+el.overrideSessionPath?.addEventListener("change", () => {
+  saveConfigForm();
 });
 
 document.querySelector("#releaseLock")?.addEventListener("click", async () => {
@@ -193,14 +200,12 @@ async function refreshSessions() {
   const current = el.sessionPath.value || saved.sessionPath || "";
   const result = await api("/api/sessions?limit=20", null, "GET");
   const sessions = result.sessions || [];
-  el.sessionPath.replaceChildren(...sessions.map(session => {
-    const option = document.createElement("option");
-    option.value = session.path;
-    option.textContent = sessionLabel(session);
-    return option;
-  }));
+  populateSessionSelect(el.sessionPath, sessions);
+  populateSessionSelect(el.overrideSessionPath, sessions);
   const selected = current || result.selectedSessionPath || sessions[0]?.path || "";
   if (selected) el.sessionPath.value = selected;
+  const overrideSelected = saved.overrideSessionPath || el.overrideSessionPath.value || selected;
+  if (overrideSelected) el.overrideSessionPath.value = overrideSelected;
   saveConfigForm();
 }
 
@@ -276,13 +281,32 @@ function renderChats() {
         state.selectedChatId = chat.id;
         persistSelection();
         if (action === "take") {
+          const targetSessionPath = selectedOverrideSessionPath();
+          if (!targetSessionPath) {
+            writeOutput("Choose a local chat to override first.");
+            return;
+          }
           await syncConfig();
           const result = await api("/api/acquire-lock", {
             roomId: state.selectedRoomId,
             chatId: chat.id,
             task: chat.title
           });
-          writeOutput(JSON.stringify(result, null, 2));
+          let output = result;
+          const selectedStatus = await api(`/api/status?roomId=${encodeURIComponent(state.selectedRoomId)}&chatId=${encodeURIComponent(chat.id)}`, null, "GET");
+          if (selectedStatus.latestHandoff) {
+            output = {
+              lock: result,
+              override: await api("/api/apply-latest", {
+                roomId: state.selectedRoomId,
+                chatId: chat.id,
+                checkout: true,
+                requireCleanTree: true,
+                targetSessionPath
+              })
+            };
+          }
+          writeOutput(JSON.stringify(output, null, 2));
         } else if (action === "comment") {
           const body = prompt("Comment");
           if (body) {
@@ -304,6 +328,19 @@ function renderHandoff() {
   el.handoffBranch.textContent = handoff?.git_ref || "-";
   el.handoffCommit.textContent = handoff?.git_commit || "-";
   el.handoffTranscript.textContent = handoff ? "Synced" : "-";
+}
+
+function populateSessionSelect(select, sessions) {
+  select.replaceChildren(...sessions.map(session => {
+    const option = document.createElement("option");
+    option.value = session.path;
+    option.textContent = sessionLabel(session);
+    return option;
+  }));
+}
+
+function selectedOverrideSessionPath() {
+  return el.overrideSessionPath.value || el.sessionPath.value;
 }
 
 async function api(path, body, method = "POST") {
@@ -354,6 +391,9 @@ function loadConfigForm() {
     option.textContent = saved.sessionPath;
     el.sessionPath.replaceChildren(option);
     el.sessionPath.value = saved.sessionPath;
+    const overrideOption = option.cloneNode(true);
+    el.overrideSessionPath.replaceChildren(overrideOption);
+    el.overrideSessionPath.value = saved.overrideSessionPath || saved.sessionPath;
   }
   el.authEmail.value = saved.authEmail || "";
 }
@@ -367,6 +407,7 @@ function readConfigForm() {
     storageBucket: el.storageBucket.value.trim() || "codex-snapshots",
     workspace: el.workspace.value.trim(),
     sessionPath: el.sessionPath.value,
+    overrideSessionPath: el.overrideSessionPath.value,
     authEmail: el.authEmail.value.trim()
   };
 }

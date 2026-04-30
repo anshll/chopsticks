@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 const SECRET_PATTERNS = [
@@ -50,6 +50,23 @@ export async function importSnapshot(bytes, expectedSha256, roomId, chatId, hand
     const target = path.join(targetDir, `${handoffId}-${randomUUID()}.jsonl`);
     await writeFile(target, bytes, { flag: "wx" });
     return target;
+}
+export async function restoreSnapshotToSession(bytes, expectedSha256, targetSessionPath) {
+    const actual = createHash("sha256").update(bytes).digest("hex");
+    if (actual !== expectedSha256) {
+        throw new Error(`Snapshot hash mismatch: expected ${expectedSha256}, got ${actual}`);
+    }
+    const text = bytes.toString("utf8");
+    validateJsonl(text, "downloaded snapshot");
+    const resolvedTarget = path.resolve(targetSessionPath);
+    const sessionRoot = path.resolve(defaultSessionRoot());
+    if (!resolvedTarget.startsWith(`${sessionRoot}${path.sep}`) || !resolvedTarget.endsWith(".jsonl")) {
+        throw new Error(`Refusing to restore transcript outside Codex sessions: ${targetSessionPath}`);
+    }
+    const backupPath = `${resolvedTarget}.chopsticks-backup-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+    await copyFile(resolvedTarget, backupPath);
+    await writeFile(resolvedTarget, bytes);
+    return { restoredPath: resolvedTarget, backupPath, sessionId: extractSessionId(text) };
 }
 function defaultSessionRoot() {
     return path.join(homedir(), ".codex", "sessions");
@@ -104,6 +121,12 @@ function extractSessionId(text) {
             const sessionId = parsed.session_id || parsed.sessionId || parsed.id;
             if (typeof sessionId === "string" && sessionId.length > 8)
                 return sessionId;
+            const payload = parsed.payload;
+            if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+                const payloadId = payload.id;
+                if (typeof payloadId === "string" && payloadId.length > 8)
+                    return payloadId;
+            }
         }
         catch {
             return null;

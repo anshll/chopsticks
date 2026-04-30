@@ -86,11 +86,12 @@ const tools = [
   },
   {
     name: "chopsticks_apply_latest_handoff",
-    description: "Fetch Git state and import the latest transcript snapshot as a restored session.",
+    description: "Fetch Git state and import the latest transcript snapshot as a restored session, or refresh a specific Codex session when targetSessionPath is provided.",
     inputSchema: objectSchema({
       ...roomChatProps(),
       checkout: { type: "boolean", default: true },
-      requireCleanTree: { type: "boolean", default: true }
+      requireCleanTree: { type: "boolean", default: true },
+      targetSessionPath: { type: "string" }
     }, ["roomId", "chatId"])
   }
 ];
@@ -183,7 +184,8 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<Js
       return applyLatestHandoff({
         ...asRoomChat(args),
         checkout: args.checkout !== false,
-        requireCleanTree: args.requireCleanTree !== false
+        requireCleanTree: args.requireCleanTree !== false,
+        targetSessionPath: asOptionalString(args.targetSessionPath)
       }, { cwd });
     default:
       throw new Error(`Unknown tool ${name}`);

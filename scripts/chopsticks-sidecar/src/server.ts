@@ -109,7 +109,8 @@ async function callApi(pathname: string, body: Record<string, unknown>, search: 
         roomId: asString(body.roomId, "roomId"),
         chatId: asString(body.chatId, "chatId"),
         checkout: body.checkout !== false,
-        requireCleanTree: body.requireCleanTree !== false
+        requireCleanTree: body.requireCleanTree !== false,
+        targetSessionPath: asOptionalString(body.targetSessionPath) || currentSessionPath || undefined
       }, { cwd: currentWorkspace });
     default:
       throw new Error(`Unknown API route ${pathname}`);

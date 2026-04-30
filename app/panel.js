@@ -147,7 +147,8 @@ document.querySelector("#applyHandoff")?.addEventListener("click", async () => {
       roomId: state.selectedRoomId,
       chatId: state.selectedChatId,
       checkout: true,
-      requireCleanTree: true
+      requireCleanTree: true,
+      targetSessionPath: el.sessionPath.value
     });
     writeOutput(JSON.stringify(result, null, 2));
     await refresh();

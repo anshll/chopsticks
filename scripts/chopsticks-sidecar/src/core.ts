@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { loadConfig } from "./config.js";
 import { checkoutCommit, commitAll, currentCommit, currentRef, fetchRef, isWorkingTreeClean, pushCurrentBranch, repoUrl, workingTreeStatus } from "./git.js";
-import { importSnapshot, latestCodexSession, prepareSnapshot } from "./session.js";
+import { importSnapshot, latestCodexSession, prepareSnapshot, restoreSnapshotToSession } from "./session.js";
 import { SupabaseRest } from "./supabase.js";
 import type { Handoff, Json, SnapshotMetadata } from "./types.js";
 
@@ -201,6 +201,7 @@ export async function applyLatestHandoff(args: {
   chatId: string;
   checkout?: boolean;
   requireCleanTree?: boolean;
+  targetSessionPath?: string;
 }, ctx: ToolContext): Promise<Json> {
   const { supabase } = client();
   const roomStatus = await supabase.getStatus(args.roomId, args.chatId);
@@ -221,6 +222,11 @@ export async function applyLatestHandoff(args: {
   }
 
   const bytes = await supabase.downloadObject(handoff.snapshot_storage_path);
+  if (args.targetSessionPath) {
+    const restored = await restoreSnapshotToSession(bytes, handoff.snapshot_sha256, args.targetSessionPath);
+    return { ok: true, handoff, ...restored, mode: "selected_session_refreshed" } as unknown as Json;
+  }
+
   const restoredPath = await importSnapshot(bytes, handoff.snapshot_sha256, args.roomId, args.chatId, handoff.id);
-  return { ok: true, handoff, restoredPath } as unknown as Json;
+  return { ok: true, handoff, restoredPath, mode: "restored_session_file" } as unknown as Json;
 }

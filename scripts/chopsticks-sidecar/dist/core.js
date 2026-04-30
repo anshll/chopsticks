@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { loadConfig } from "./config.js";
 import { checkoutCommit, commitAll, currentCommit, currentRef, fetchRef, isWorkingTreeClean, pushCurrentBranch, repoUrl, workingTreeStatus } from "./git.js";
-import { importSnapshot, latestCodexSession, prepareSnapshot } from "./session.js";
+import { importSnapshot, latestCodexSession, prepareSnapshot, restoreSnapshotToSession } from "./session.js";
 import { SupabaseRest } from "./supabase.js";
 export function client() {
     const config = loadConfig();
@@ -171,6 +171,10 @@ export async function applyLatestHandoff(args, ctx) {
         await checkoutCommit(ctx.cwd, handoff.git_commit);
     }
     const bytes = await supabase.downloadObject(handoff.snapshot_storage_path);
+    if (args.targetSessionPath) {
+        const restored = await restoreSnapshotToSession(bytes, handoff.snapshot_sha256, args.targetSessionPath);
+        return { ok: true, handoff, ...restored, mode: "selected_session_refreshed" };
+    }
     const restoredPath = await importSnapshot(bytes, handoff.snapshot_sha256, args.roomId, args.chatId, handoff.id);
-    return { ok: true, handoff, restoredPath };
+    return { ok: true, handoff, restoredPath, mode: "restored_session_file" };
 }

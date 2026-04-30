@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "chopsticks": {
+      "command": "node",
+      "args": [
+        "./scripts/chopsticks-sidecar/dist/mcp.js"
+      ],
+      "env": {
+        "CHOPSTICKS_SUPABASE_URL": "${CHOPSTICKS_SUPABASE_URL}",
+        "CHOPSTICKS_SUPABASE_ANON_KEY": "${CHOPSTICKS_SUPABASE_ANON_KEY}",
+        "CHOPSTICKS_SUPABASE_ACCESS_TOKEN": "${CHOPSTICKS_SUPABASE_ACCESS_TOKEN}",
+        "CHOPSTICKS_STORAGE_BUCKET": "${CHOPSTICKS_STORAGE_BUCKET}",
+        "CHOPSTICKS_USER_ID": "${CHOPSTICKS_USER_ID}"
+      }
+    }
+  }
+}

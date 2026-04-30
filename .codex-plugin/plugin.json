@@ -1,0 +1,41 @@
+{
+  "name": "chopsticks",
+  "version": "0.1.0",
+  "description": "Turn-based Codex Desktop collaboration with room locks, Git-backed handoffs, and Supabase transcript snapshots.",
+  "author": {
+    "name": "Chopsticks Contributors",
+    "email": "chopsticks@example.com",
+    "url": "https://example.com/chopsticks"
+  },
+  "homepage": "https://example.com/chopsticks",
+  "repository": "https://example.com/chopsticks/repo",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "collaboration",
+    "handoff"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Chopsticks",
+    "shortDescription": "Turn-based shared Codex rooms and handoffs.",
+    "longDescription": "Chopsticks coordinates Codex Desktop sessions through room membership, per-chat lock leases, GitHub code state, Supabase transcript snapshots, and durable handoff metadata.",
+    "developerName": "Chopsticks Contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write",
+      "MCP"
+    ],
+    "websiteURL": "https://example.com/chopsticks",
+    "privacyPolicyURL": "https://example.com/chopsticks/privacy",
+    "termsOfServiceURL": "https://example.com/chopsticks/terms",
+    "defaultPrompt": [
+      "Check Chopsticks room status.",
+      "Create a handoff for this Codex chat.",
+      "Take over from the latest Chopsticks handoff."
+    ],
+    "brandColor": "#2563EB"
+  }
+}

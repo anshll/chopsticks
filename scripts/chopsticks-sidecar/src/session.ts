@@ -1,0 +1,111 @@
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import path from "node:path";
+
+export interface SnapshotCandidate {
+  path: string;
+  bytes: Buffer;
+  sha256: string;
+  warnings: string[];
+  sessionId: string | null;
+}
+
+const SECRET_PATTERNS = [
+  /sk-[A-Za-z0-9_-]{20,}/,
+  /ghp_[A-Za-z0-9_]{20,}/,
+  /AKIA[0-9A-Z]{16}/,
+  /-----BEGIN (?:RSA |EC |OPENSSH |)PRIVATE KEY-----/
+];
+
+export async function latestCodexSession(sessionRoot = defaultSessionRoot()): Promise<string> {
+  const files = await walkJsonl(sessionRoot);
+  if (files.length === 0) {
+    throw new Error(`No Codex JSONL session files found under ${sessionRoot}`);
+  }
+
+  const withStats = await Promise.all(files.map(async file => ({ file, stats: await stat(file) })));
+  withStats.sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs);
+  return withStats[0].file;
+}
+
+export async function prepareSnapshot(filePath: string): Promise<SnapshotCandidate> {
+  const bytes = await readFile(filePath);
+  const text = bytes.toString("utf8");
+  validateJsonl(text, filePath);
+
+  return {
+    path: filePath,
+    bytes,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    warnings: scanForSecrets(text),
+    sessionId: extractSessionId(text)
+  };
+}
+
+export async function importSnapshot(bytes: Buffer, expectedSha256: string, roomId: string, chatId: string, handoffId: string): Promise<string> {
+  const actual = createHash("sha256").update(bytes).digest("hex");
+  if (actual !== expectedSha256) {
+    throw new Error(`Snapshot hash mismatch: expected ${expectedSha256}, got ${actual}`);
+  }
+  validateJsonl(bytes.toString("utf8"), "downloaded snapshot");
+
+  const targetDir = path.join(defaultSessionRoot(), "chopsticks-restored", roomId, chatId);
+  await mkdir(targetDir, { recursive: true });
+  const target = path.join(targetDir, `${handoffId}-${randomUUID()}.jsonl`);
+  await writeFile(target, bytes, { flag: "wx" });
+  return target;
+}
+
+function defaultSessionRoot(): string {
+  return path.join(homedir(), ".codex", "sessions");
+}
+
+async function walkJsonl(root: string): Promise<string[]> {
+  const found: string[] = [];
+  const entries = await readdir(root, { withFileTypes: true });
+  for (const entry of entries) {
+    const full = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...await walkJsonl(full));
+    } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      found.push(full);
+    }
+  }
+  return found;
+}
+
+function validateJsonl(text: string, label: string): void {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  for (let i = 0; i < lines.length; i += 1) {
+    try {
+      JSON.parse(lines[i]);
+    } catch (error) {
+      throw new Error(`Invalid JSONL in ${label} at line ${i + 1}: ${(error as Error).message}`);
+    }
+  }
+}
+
+function scanForSecrets(text: string): string[] {
+  const warnings: string[] = [];
+  for (const pattern of SECRET_PATTERNS) {
+    if (pattern.test(text)) {
+      warnings.push(`Transcript matches sensitive pattern ${pattern.source}`);
+    }
+  }
+  return warnings;
+}
+
+function extractSessionId(text: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      const sessionId = parsed.session_id || parsed.sessionId || parsed.id;
+      if (typeof sessionId === "string" && sessionId.length > 8) return sessionId;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

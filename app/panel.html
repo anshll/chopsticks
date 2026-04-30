@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chopsticks</title>
+    <link rel="stylesheet" href="./panel.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <h1>Chopsticks</h1>
+          <p id="connectionStatus">Connecting to local sidecar...</p>
+        </div>
+        <button class="primary" id="createRoom">New Room</button>
+      </section>
+
+      <section class="setup-form" aria-label="Chopsticks setup">
+        <div class="setup-head">
+          <div>
+            <div class="section-title">Setup</div>
+            <h2>Local sidecar config</h2>
+          </div>
+          <div class="actions">
+            <button id="saveConfig">Save Config</button>
+            <button id="clearConfig">Clear</button>
+          </div>
+        </div>
+        <div class="setup-grid">
+          <label>
+            Supabase URL
+            <input id="supabaseUrl" placeholder="https://brzavzswidmkaxpklgah.supabase.co">
+          </label>
+          <label>
+            Publishable key
+            <input id="supabaseAnonKey" placeholder="sb_publishable_...">
+          </label>
+          <label>
+            User access token
+            <input id="supabaseAccessToken" type="password" placeholder="Supabase Auth access token">
+          </label>
+          <label>
+            User UUID
+            <input id="userId" placeholder="auth user uuid">
+          </label>
+          <label>
+            Storage bucket
+            <input id="storageBucket" placeholder="codex-snapshots">
+          </label>
+          <label>
+            Workspace path
+            <input id="workspace" placeholder="/path/to/linked/github/repo">
+          </label>
+        </div>
+        <div class="auth-panel" aria-label="Supabase sign in">
+          <div>
+            <div class="section-title">Supabase Auth</div>
+            <p>Sign in to fill the user access token and UUID automatically.</p>
+          </div>
+          <label>
+            Email
+            <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com">
+          </label>
+          <label>
+            Password
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="Supabase Auth password">
+          </label>
+          <button id="signInSupabase">Sign In</button>
+        </div>
+      </section>
+
+      <section class="room-form" aria-label="Create room">
+        <label>
+          Room
+          <input id="roomName" placeholder="Auth callback work">
+        </label>
+        <label>
+          GitHub URL
+          <input id="repoUrl" placeholder="https://github.com/org/repo">
+        </label>
+      </section>
+
+      <section class="layout">
+        <aside class="rooms" aria-label="Rooms">
+          <div class="section-title">Rooms</div>
+          <div id="roomsList" class="stack"></div>
+        </aside>
+
+        <section class="chat-panel" aria-label="Room chats">
+          <header class="chat-header">
+            <div>
+              <div class="section-title">Chats</div>
+              <h2 id="activeRoomName">No room selected</h2>
+            </div>
+            <button id="createChat">New Chat</button>
+          </header>
+
+          <div id="chatsList" class="stack"></div>
+
+          <div class="handoff">
+            <div class="section-title">Latest Handoff</div>
+            <h3 id="handoffSummary">Select a chat</h3>
+            <dl>
+              <div><dt>Branch</dt><dd id="handoffBranch">-</dd></div>
+              <div><dt>Commit</dt><dd id="handoffCommit">-</dd></div>
+              <div><dt>Transcript</dt><dd id="handoffTranscript">-</dd></div>
+            </dl>
+            <label class="plain-label">
+              Summary
+              <input id="finishSummary" placeholder="Added auth callback and tests">
+            </label>
+            <label class="plain-label">
+              Commit message
+              <input id="commitMessage" placeholder="Chopsticks handoff">
+            </label>
+            <label class="check-row">
+              <input id="commitAndPush" type="checkbox" checked>
+              Commit and push touched code before releasing control
+            </label>
+            <label class="check-row">
+              <input id="declineLocalChanges" type="checkbox">
+              I declined local code changes; sync transcript only
+            </label>
+            <div class="handoff-actions">
+              <button class="primary" id="finishControl">Finish Control</button>
+              <button id="applyHandoff">Apply Handoff</button>
+              <button id="releaseLock">Leave Control</button>
+            </div>
+            <pre id="output" aria-live="polite"></pre>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="./panel.js"></script>
+  </body>
+</html>

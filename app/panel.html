@@ -52,6 +52,10 @@
             Workspace path
             <input id="workspace" placeholder="/path/to/linked/github/repo">
           </label>
+          <label>
+            Codex session
+            <select id="sessionPath"></select>
+          </label>
         </div>
         <div class="auth-panel" aria-label="Supabase sign in">
           <div>
@@ -121,6 +125,10 @@
             <label class="check-row">
               <input id="declineLocalChanges" type="checkbox">
               I declined local code changes; sync transcript only
+            </label>
+            <label class="check-row">
+              <input id="allowSensitiveTranscript" type="checkbox">
+              Upload transcript even if the local scanner sees sensitive patterns
             </label>
             <div class="handoff-actions">
               <button class="primary" id="finishControl">Finish Control</button>

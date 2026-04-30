@@ -89,6 +89,7 @@ export async function finishControl(args: {
       codexVersion: args.codexVersion,
       allowSensitiveTranscript: args.allowSensitiveTranscript
     }, ctx);
+    if (isBlocked(handoff)) return handoff;
     await releaseLock({ roomId: args.roomId, chatId: args.chatId });
     return {
       ok: true,
@@ -124,6 +125,7 @@ export async function finishControl(args: {
     codexVersion: args.codexVersion,
     allowSensitiveTranscript: args.allowSensitiveTranscript
   }, ctx);
+  if (isBlocked(handoff)) return handoff;
   await releaseLock({ roomId: args.roomId, chatId: args.chatId });
   return { ok: true, committed, handoff, released: true } as unknown as Json;
 }
@@ -188,6 +190,10 @@ export async function createHandoff(args: {
   };
 
   return { ok: true, handoff, metadata, warnings: snapshot.warnings } as unknown as Json;
+}
+
+function isBlocked(value: Json): boolean {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && value.blocked === true);
 }
 
 export async function applyLatestHandoff(args: {

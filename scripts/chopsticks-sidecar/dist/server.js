@@ -4,8 +4,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { acquireLock, applyLatestHandoff, comment, createChat, createRoom, finishControl, listChats, listRooms, releaseLock, status } from "./core.js";
+import { latestCodexSession, listRecentCodexSessions } from "./session.js";
 const port = Number(process.env.CHOPSTICKS_PANEL_PORT || 4217);
 let currentWorkspace = process.env.CHOPSTICKS_WORKSPACE || process.cwd();
+let currentSessionPath = process.env.CHOPSTICKS_SESSION_PATH || "";
 const sidecarDir = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(sidecarDir, "..", "..", "..", "app");
 const server = createServer((request, response) => {
@@ -42,6 +44,8 @@ async function callApi(pathname, body, search) {
             return signInWithPassword(body);
         case "/api/health":
             return { ok: true, cwd: currentWorkspace, config: redactedConfig() };
+        case "/api/sessions":
+            return listSessions(search);
         case "/api/rooms":
             if (body.name || body.repoUrl) {
                 return createRoom({
@@ -89,6 +93,7 @@ async function callApi(pathname, body, search) {
                 commitMessage: asOptionalString(body.commitMessage),
                 commitAndPush: body.commitAndPush !== false,
                 declineLocalChanges: Boolean(body.declineLocalChanges),
+                sessionPath: asOptionalString(body.sessionPath) || currentSessionPath || undefined,
                 allowSensitiveTranscript: Boolean(body.allowSensitiveTranscript)
             }, { cwd: currentWorkspace });
         case "/api/apply-latest":
@@ -108,8 +113,12 @@ function applyConfig(body) {
     assignEnv("CHOPSTICKS_SUPABASE_ACCESS_TOKEN", body.supabaseAccessToken);
     assignEnv("CHOPSTICKS_STORAGE_BUCKET", body.storageBucket);
     assignEnv("CHOPSTICKS_USER_ID", body.userId);
+    assignEnv("CHOPSTICKS_SESSION_PATH", body.sessionPath);
     if (typeof body.workspace === "string" && body.workspace.length > 0) {
         currentWorkspace = body.workspace;
+    }
+    if (typeof body.sessionPath === "string" && body.sessionPath.length > 0) {
+        currentSessionPath = body.sessionPath;
     }
 }
 async function signInWithPassword(body) {
@@ -147,7 +156,8 @@ async function signInWithPassword(body) {
         supabaseAccessToken: accessToken,
         userId,
         storageBucket: body.storageBucket,
-        workspace: body.workspace
+        workspace: body.workspace,
+        sessionPath: body.sessionPath
     });
     return {
         ok: true,
@@ -157,6 +167,7 @@ async function signInWithPassword(body) {
         supabaseAccessTokenPreview: redact(accessToken),
         userId,
         storageBucket: process.env.CHOPSTICKS_STORAGE_BUCKET || "codex-snapshots",
+        sessionPath: currentSessionPath || null,
         workspace: currentWorkspace
     };
 }
@@ -172,7 +183,19 @@ function redactedConfig() {
         supabaseAccessToken: redact(process.env.CHOPSTICKS_SUPABASE_ACCESS_TOKEN),
         storageBucket: process.env.CHOPSTICKS_STORAGE_BUCKET || "codex-snapshots",
         userId: process.env.CHOPSTICKS_USER_ID || null,
+        sessionPath: currentSessionPath || null,
         workspace: currentWorkspace
+    };
+}
+async function listSessions(search) {
+    const limit = Number(search.get("limit") || 20);
+    const sessions = await listRecentCodexSessions(undefined, Number.isFinite(limit) ? limit : 20);
+    if (!currentSessionPath && sessions.length > 0) {
+        currentSessionPath = await latestCodexSession();
+    }
+    return {
+        selectedSessionPath: currentSessionPath || null,
+        sessions
     };
 }
 function redact(value) {

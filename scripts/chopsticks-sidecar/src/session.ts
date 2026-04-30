@@ -11,6 +11,14 @@ export interface SnapshotCandidate {
   sessionId: string | null;
 }
 
+export interface SessionSummary {
+  path: string;
+  modifiedAt: string;
+  bytes: number;
+  cwd: string | null;
+  sessionId: string | null;
+}
+
 const SECRET_PATTERNS = [
   /sk-[A-Za-z0-9_-]{20,}/,
   /ghp_[A-Za-z0-9_]{20,}/,
@@ -19,14 +27,24 @@ const SECRET_PATTERNS = [
 ];
 
 export async function latestCodexSession(sessionRoot = defaultSessionRoot()): Promise<string> {
-  const files = await walkJsonl(sessionRoot);
-  if (files.length === 0) {
+  const sessions = await listRecentCodexSessions(sessionRoot, 1);
+  if (sessions.length === 0) {
     throw new Error(`No Codex JSONL session files found under ${sessionRoot}`);
   }
+  return sessions[0].path;
+}
 
+export async function listRecentCodexSessions(sessionRoot = defaultSessionRoot(), limit = 20): Promise<SessionSummary[]> {
+  const files = await walkJsonl(sessionRoot);
   const withStats = await Promise.all(files.map(async file => ({ file, stats: await stat(file) })));
   withStats.sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs);
-  return withStats[0].file;
+  const recent = withStats.slice(0, Math.max(1, limit));
+  return await Promise.all(recent.map(async ({ file, stats }) => ({
+    path: file,
+    modifiedAt: stats.mtime.toISOString(),
+    bytes: stats.size,
+    ...await readSessionSummary(file)
+  })));
 }
 
 export async function prepareSnapshot(filePath: string): Promise<SnapshotCandidate> {
@@ -59,6 +77,14 @@ export async function importSnapshot(bytes: Buffer, expectedSha256: string, room
 
 function defaultSessionRoot(): string {
   return path.join(homedir(), ".codex", "sessions");
+}
+
+async function readSessionSummary(filePath: string): Promise<{ cwd: string | null; sessionId: string | null }> {
+  const text = await readFile(filePath, "utf8");
+  return {
+    cwd: extractCwd(text),
+    sessionId: extractSessionId(text)
+  };
 }
 
 async function walkJsonl(root: string): Promise<string[]> {
@@ -103,6 +129,25 @@ function extractSessionId(text: string): string | null {
       const parsed = JSON.parse(line) as Record<string, unknown>;
       const sessionId = parsed.session_id || parsed.sessionId || parsed.id;
       if (typeof sessionId === "string" && sessionId.length > 8) return sessionId;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function extractCwd(text: string): string | null {
+  for (const line of text.split(/\r?\n/)) {
+    if (!line) continue;
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      const cwd = parsed.cwd;
+      if (typeof cwd === "string" && cwd.length > 0) return cwd;
+      const payload = parsed.payload;
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        const payloadCwd = (payload as Record<string, unknown>).cwd;
+        if (typeof payloadCwd === "string" && payloadCwd.length > 0) return payloadCwd;
+      }
     } catch {
       return null;
     }

@@ -15,6 +15,7 @@ const el = {
   userId: document.querySelector("#userId"),
   storageBucket: document.querySelector("#storageBucket"),
   workspace: document.querySelector("#workspace"),
+  sessionPath: document.querySelector("#sessionPath"),
   authEmail: document.querySelector("#authEmail"),
   authPassword: document.querySelector("#authPassword"),
   roomName: document.querySelector("#roomName"),
@@ -30,6 +31,7 @@ const el = {
   commitMessage: document.querySelector("#commitMessage"),
   commitAndPush: document.querySelector("#commitAndPush"),
   declineLocalChanges: document.querySelector("#declineLocalChanges"),
+  allowSensitiveTranscript: document.querySelector("#allowSensitiveTranscript"),
   output: document.querySelector("#output")
 };
 
@@ -50,6 +52,7 @@ document.querySelector("#clearConfig")?.addEventListener("click", () => {
   for (const input of [el.supabaseUrl, el.supabaseAnonKey, el.supabaseAccessToken, el.userId, el.storageBucket, el.workspace]) {
     input.value = "";
   }
+  el.sessionPath.replaceChildren();
   state.configSynced = false;
   writeOutput("Local setup fields cleared. Restart the sidecar to clear server memory.");
 });
@@ -127,7 +130,9 @@ document.querySelector("#finishControl")?.addEventListener("click", async () => 
       summary: summary || "Released control without accepting local changes",
       commitMessage: el.commitMessage.value.trim() || summary,
       commitAndPush: el.commitAndPush.checked,
-      declineLocalChanges: el.declineLocalChanges.checked
+      declineLocalChanges: el.declineLocalChanges.checked,
+      sessionPath: el.sessionPath.value,
+      allowSensitiveTranscript: el.allowSensitiveTranscript.checked
     });
     writeOutput(JSON.stringify(result, null, 2));
     await refresh();
@@ -164,6 +169,7 @@ document.querySelector("#releaseLock")?.addEventListener("click", async () => {
 
 async function refresh() {
   try {
+    await refreshSessions();
     await syncConfig();
     await api("/api/health", null, "GET");
     el.connectionStatus.textContent = "Connected to local sidecar";
@@ -179,6 +185,22 @@ async function refresh() {
       : "Connected to panel server; configure Supabase auth to load rooms";
     writeOutput(error.message);
   }
+}
+
+async function refreshSessions() {
+  const saved = JSON.parse(localStorage.getItem("chopsticks.config") || "{}");
+  const current = el.sessionPath.value || saved.sessionPath || "";
+  const result = await api("/api/sessions?limit=20", null, "GET");
+  const sessions = result.sessions || [];
+  el.sessionPath.replaceChildren(...sessions.map(session => {
+    const option = document.createElement("option");
+    option.value = session.path;
+    option.textContent = sessionLabel(session);
+    return option;
+  }));
+  const selected = current || result.selectedSessionPath || sessions[0]?.path || "";
+  if (selected) el.sessionPath.value = selected;
+  saveConfigForm();
 }
 
 async function syncConfig() {
@@ -325,6 +347,13 @@ function loadConfigForm() {
   el.userId.value = saved.userId || "";
   el.storageBucket.value = saved.storageBucket || "codex-snapshots";
   el.workspace.value = saved.workspace || "";
+  if (saved.sessionPath) {
+    const option = document.createElement("option");
+    option.value = saved.sessionPath;
+    option.textContent = saved.sessionPath;
+    el.sessionPath.replaceChildren(option);
+    el.sessionPath.value = saved.sessionPath;
+  }
   el.authEmail.value = saved.authEmail || "";
 }
 
@@ -336,6 +365,7 @@ function readConfigForm() {
     userId: el.userId.value.trim(),
     storageBucket: el.storageBucket.value.trim() || "codex-snapshots",
     workspace: el.workspace.value.trim(),
+    sessionPath: el.sessionPath.value,
     authEmail: el.authEmail.value.trim()
   };
 }
@@ -356,6 +386,12 @@ function escapeHtml(value) {
     "\"": "&quot;",
     "'": "&#039;"
   }[char]));
+}
+
+function sessionLabel(session) {
+  const modified = session.modifiedAt ? new Date(session.modifiedAt).toLocaleString() : "unknown time";
+  const cwd = session.cwd || "unknown cwd";
+  return `${modified} - ${cwd}`;
 }
 
 void refresh();

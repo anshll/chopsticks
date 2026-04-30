@@ -63,6 +63,8 @@ export async function finishControl(args, ctx) {
             codexVersion: args.codexVersion,
             allowSensitiveTranscript: args.allowSensitiveTranscript
         }, ctx);
+        if (isBlocked(handoff))
+            return handoff;
         await releaseLock({ roomId: args.roomId, chatId: args.chatId });
         return {
             ok: true,
@@ -95,6 +97,8 @@ export async function finishControl(args, ctx) {
         codexVersion: args.codexVersion,
         allowSensitiveTranscript: args.allowSensitiveTranscript
     }, ctx);
+    if (isBlocked(handoff))
+        return handoff;
     await releaseLock({ roomId: args.roomId, chatId: args.chatId });
     return { ok: true, committed, handoff, released: true };
 }
@@ -146,6 +150,9 @@ export async function createHandoff(args, ctx) {
         snapshot: { storage_path: storagePath, sha256: snapshot.sha256 }
     };
     return { ok: true, handoff, metadata, warnings: snapshot.warnings };
+}
+function isBlocked(value) {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value) && value.blocked === true);
 }
 export async function applyLatestHandoff(args, ctx) {
     const { supabase } = client();
